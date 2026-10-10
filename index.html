@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Econ Reasoning Tutor</title>
 <style>
-:root{--bg:#f7f6f2;--card:#fff;--ink:#1c2230;--mute:#5d667a;--line:#dcdfe6;--accent:#1d5fa8;--accent2:#c2410c;--good:#15803d;--bad:#b91c1c;--c1:#1d5fa8;--c2:#c2410c;--c3:#15803d;--c4:#7c3aed;--fill:rgba(29,95,168,.15)}
-@media (prefers-color-scheme:dark){:root{--bg:#12151c;--card:#1b202b;--ink:#e8ebf2;--mute:#9aa3b8;--line:#2e3545;--accent:#6aa9f0;--accent2:#fb923c;--good:#4ade80;--bad:#f87171;--c1:#6aa9f0;--c2:#fb923c;--c3:#4ade80;--c4:#a78bfa;--fill:rgba(106,169,240,.2)}}
+:root{--bg:#f7f6f2;--card:#fff;--ink:#1c2230;--mute:#5d667a;--line:#dcdfe6;--accent:#1d5fa8;--accent2:#c2410c;--good:#15803d;--bad:#b91c1c;--c1:#1d5fa8;--c2:#c2410c;--c3:#15803d;--c4:#7c3aed;--fill:rgba(29,95,168,.15);--f1:rgba(29,95,168,.22);--f2:rgba(194,65,12,.22);--f3:rgba(21,128,61,.22);--f4:rgba(124,58,237,.20);--fbad:rgba(185,28,28,.26)}
+@media (prefers-color-scheme:dark){:root{--bg:#12151c;--card:#1b202b;--ink:#e8ebf2;--mute:#9aa3b8;--line:#2e3545;--accent:#6aa9f0;--accent2:#fb923c;--good:#4ade80;--bad:#f87171;--c1:#6aa9f0;--c2:#fb923c;--c3:#4ade80;--c4:#a78bfa;--fill:rgba(106,169,240,.2);--f1:rgba(106,169,240,.25);--f2:rgba(251,146,60,.25);--f3:rgba(74,222,128,.24);--f4:rgba(167,139,250,.24);--fbad:rgba(248,113,113,.28)}}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
 header{padding:14px 16px;border-bottom:1px solid var(--line);background:var(--card);display:flex;align-items:center;gap:12px;flex-wrap:wrap}
@@ -30,7 +30,7 @@ h2{margin:6px 0 2px}h3{margin:18px 0 6px}
 .out{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-top:10px}
 .out div{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:13px;color:var(--mute)}
 .out b{display:block;font-size:18px;color:var(--ink)}
-canvas{width:100%;height:300px;display:block}
+canvas{width:100%;height:300px;display:block;margin-bottom:8px}
 .opt{display:block;width:100%;text-align:left;margin:6px 0;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink);cursor:pointer;font:inherit}
 .opt:disabled{cursor:default;color:var(--ink)}.opt.right{border-color:var(--good);background:rgba(34,197,94,.13)}.opt.wrong{border-color:var(--bad);background:rgba(239,68,68,.13)}
 .fc{height:180px;display:flex;align-items:center;justify-content:center;text-align:center;font-size:20px;padding:20px;cursor:pointer;user-select:none}
@@ -51,26 +51,110 @@ const store={get(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v)
 let progress=store.get('econ-progress',{}); // {modId:{best,total}}
 
 // ---------- chart helper ----------
-function css(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim()}
+function css(v){return v&&v.startsWith('--')?getComputedStyle(document.documentElement).getPropertyValue(v).trim():v}
 function chart(cv,o){
-  const dpr=window.devicePixelRatio||1,w=cv.clientWidth,h=cv.clientHeight;
+  cv.style.height=(o.height||300)+'px';
+  const dpr=window.devicePixelRatio||1,w=cv.clientWidth||600,h=cv.clientHeight||(o.height||300);
   cv.width=w*dpr;cv.height=h*dpr;const g=cv.getContext('2d');g.scale(dpr,dpr);g.clearRect(0,0,w,h);
-  const L=46,R=14,T=14,B=36,pw=w-L-R,ph=h-T-B;
+  if(o.bars){
+    const pad=12,bw=w-pad*2;
+    o.bars.forEach((b,idx)=>{
+      const y=18+idx*64;
+      g.font='600 12px system-ui';g.fillStyle=css('--ink');g.textAlign='left';g.fillText(b.label,pad,y);
+      let cx=pad;const tot=b.total||1;
+      b.segs.forEach(s=>{
+        if(s.v<=0)return;
+        const sw=Math.max(0,(s.v/tot)*bw);
+        g.fillStyle=css(s.c);g.fillRect(cx,y+7,sw,26);
+        g.strokeStyle=css('--card');g.lineWidth=1.5;g.strokeRect(cx,y+7,sw,26);
+        if(sw>58){g.fillStyle='#fff';g.font='600 11px system-ui';g.textAlign='center';g.fillText(s.l,cx+sw/2,y+24)}
+        cx+=sw;
+      });
+    });
+    if(o.legend){
+      let lx=pad;const ly=h-10;g.font='11px system-ui';
+      o.legend.forEach(([l,c])=>{
+        g.fillStyle=css(c);g.fillRect(lx,ly-9,10,10);
+        g.fillStyle=css('--mute');g.textAlign='left';g.fillText(l,lx+14,ly);
+        lx+=24+g.measureText(l).width;
+      });
+    }
+    return;
+  }
+  const fLabels=(o.fills||[]).filter(f=>f.label);
+  const L=48,R=20,T=fLabels.length?28:16,B=38,pw=w-L-R,ph=h-T-B;
   const X=x=>L+x/o.xmax*pw,Y=y=>T+ph-y/o.ymax*ph;
+  if(fLabels.length){
+    let lx=L;const ly=13;g.font='11px system-ui';
+    fLabels.forEach(f=>{
+      g.fillStyle=css(f.color);g.fillRect(lx,ly-8,10,10);
+      g.strokeStyle=css('--mute');g.lineWidth=.7;g.strokeRect(lx,ly-8,10,10);
+      g.fillStyle=css('--mute');g.textAlign='left';g.fillText(f.label,lx+14,ly);
+      lx+=24+g.measureText(f.label).width;
+    });
+  }
   g.font='12px system-ui';g.fillStyle=css('--mute');g.strokeStyle=css('--line');g.lineWidth=1;
   for(let i=0;i<=5;i++){const xv=o.xmax*i/5,yv=o.ymax*i/5;
-    g.beginPath();g.moveTo(L,Y(yv));g.lineTo(L+pw,Y(yv));g.stroke();
+    g.beginPath();g.moveTo(L,Y(yv));g.lineTo(L+pw,Y(yv));g.moveTo(X(xv),T);g.lineTo(X(xv),T+ph);g.stroke();
     g.textAlign='right';g.fillText(+yv.toFixed(1),L-6,Y(yv)+4);
     g.textAlign='center';g.fillText(+xv.toFixed(1),X(xv),T+ph+16);}
-  g.fillText(o.xl||'',L+pw/2,h-6);
-  g.save();g.translate(12,T+ph/2);g.rotate(-Math.PI/2);g.textAlign='center';g.fillText(o.yl||'',0,0);g.restore();
-  (o.fills||[]).forEach(f=>{g.fillStyle=f.color;g.beginPath();f.pts.forEach((p,i)=>i?g.lineTo(X(p[0]),Y(p[1])):g.moveTo(X(p[0]),Y(p[1])));g.closePath();g.fill()});
-  (o.curves||[]).forEach(c=>{g.strokeStyle=css(c.color);g.lineWidth=2;g.setLineDash(c.dash?[6,4]:[]);g.beginPath();
-    let s=false;c.pts.forEach(p=>{if(p[1]<0||p[1]>o.ymax*1.02||p[0]>o.xmax*1.001)return;const px=X(p[0]),py=Y(p[1]);s?g.lineTo(px,py):g.moveTo(px,py);s=true});g.stroke();g.setLineDash([]);
-    if(c.label){const q=c.pts.filter(p=>p[1]>=0&&p[1]<=o.ymax&&p[0]<=o.xmax);const e=q[q.length-1];if(e){g.fillStyle=css(c.color);g.textAlign='right';g.fillText(c.label,Math.min(X(e[0])-4,L+pw),Math.max(Y(e[1])-6,T+10))}}});
-  (o.points||[]).forEach(p=>{g.fillStyle=css('--ink');g.beginPath();g.arc(X(p.x),Y(p.y),4,0,7);g.fill();
-    g.setLineDash([3,3]);g.strokeStyle=css('--mute');g.beginPath();g.moveTo(X(p.x),Y(p.y));g.lineTo(X(p.x),Y(0));g.moveTo(X(p.x),Y(p.y));g.lineTo(X(0),Y(p.y));g.stroke();g.setLineDash([]);
-    if(p.label){g.fillStyle=css('--ink');g.textAlign='left';g.fillText(p.label,X(p.x)+7,Y(p.y)-7)}});
+  g.strokeStyle=css('--mute');g.globalAlpha=.45;g.beginPath();g.moveTo(L,T);g.lineTo(L,T+ph);g.lineTo(L+pw,T+ph);g.stroke();g.globalAlpha=1;
+  g.fillStyle=css('--mute');g.textAlign='center';g.fillText(o.xl||'',L+pw/2,h-6);
+  g.save();g.translate(13,T+ph/2);g.rotate(-Math.PI/2);g.textAlign='center';g.fillText(o.yl||'',0,0);g.restore();
+
+  g.save();g.beginPath();g.rect(L-1,T-1,pw+2,ph+2);g.clip();
+  (o.fills||[]).forEach(f=>{if(!f.pts||f.pts.length<3)return;g.fillStyle=css(f.color);g.beginPath();f.pts.forEach((p,i)=>i?g.lineTo(X(p[0]),Y(p[1])):g.moveTo(X(p[0]),Y(p[1])));g.closePath();g.fill()});
+  (o.curves||[]).forEach(c=>{g.strokeStyle=css(c.color);g.lineWidth=c.width||2;g.setLineDash(c.dash?(Array.isArray(c.dash)?c.dash:[6,4]):[]);g.beginPath();
+    let s=false;c.pts.forEach(p=>{if(!isFinite(p[0])||!isFinite(p[1])){s=false;return}const px=X(p[0]),py=Y(Math.min(Math.max(p[1],-o.ymax*2),o.ymax*4));s?g.lineTo(px,py):g.moveTo(px,py);s=true});g.stroke();g.setLineDash([]);
+    if(c.dots){g.fillStyle=css(c.color);c.pts.forEach(p=>{if(p[0]>=0&&p[0]<=o.xmax&&p[1]>=0&&p[1]<=o.ymax){g.beginPath();g.arc(X(p[0]),Y(p[1]),3,0,7);g.fill()}})}});
+  (o.points||[]).forEach(p=>{if(p.drop===false||p.x<0||p.x>o.xmax||p.y<0||p.y>o.ymax)return;
+    g.setLineDash([3,3]);g.strokeStyle=css('--mute');g.lineWidth=1;g.beginPath();g.moveTo(X(p.x),Y(p.y));g.lineTo(X(p.x),Y(0));g.moveTo(X(p.x),Y(p.y));g.lineTo(X(0),Y(p.y));g.stroke();g.setLineDash([])});
+  g.restore();
+
+  const boxes=[];
+  function placeLabel(text,px,py,align,color){
+    if(!text)return;
+    g.font='600 12px system-ui';
+    const tw=g.measureText(text).width,th=14;
+    let lx=align==='right'?px-tw:align==='center'?px-tw/2:px;
+    lx=Math.max(L+3,Math.min(lx,L+pw-tw-3));
+    let ly=Math.max(T+th,Math.min(py,T+ph-4));
+    for(const off of[0,-15,15,-30,30,-45,45]){
+      const ty=ly+off;
+      if(ty<T+th-1||ty>T+ph-2)continue;
+      if(!boxes.some(b=>lx<b.x+b.w+4&&lx+tw+4>b.x&&ty-th<b.y&&ty>b.y-b.h)){ly=ty;break}
+    }
+    boxes.push({x:lx,y:ly,w:tw,h:th});
+    g.fillStyle=css('--card');g.globalAlpha=.82;g.fillRect(lx-2,ly-th+2,tw+4,th);g.globalAlpha=1;
+    g.fillStyle=color;g.textAlign='left';g.fillText(text,lx,ly);
+  }
+  function ptAtX(pts,x){
+    for(let i=0;i<pts.length-1;i++){
+      const a=pts[i],b=pts[i+1];
+      if(isFinite(a[1])&&isFinite(b[1])&&((a[0]<=x&&x<=b[0])||(b[0]<=x&&x<=a[0]))){
+        const t=b[0]===a[0]?0:(x-a[0])/(b[0]-a[0]);
+        return[x,a[1]+t*(b[1]-a[1])];
+      }
+    }
+    return null;
+  }
+  (o.curves||[]).forEach(c=>{
+    if(!c.label)return;
+    const q=c.pts.filter(p=>isFinite(p[0])&&isFinite(p[1])&&p[1]>=0&&p[1]<=o.ymax&&p[0]>=0&&p[0]<=o.xmax);
+    let e=c.lx!=null?ptAtX(c.pts,c.lx):null;
+    if(!e||e[1]<0||e[1]>o.ymax||e[0]<0||e[0]>o.xmax)e=q[q.length-1];
+    if(!e)return;
+    placeLabel(c.label,X(e[0])-4,Y(e[1])-6,'right',css(c.color));
+  });
+  (o.points||[]).forEach(p=>{
+    if(p.x<0||p.x>o.xmax||p.y<0||p.y>o.ymax)return;
+    g.fillStyle=css(p.color||'--ink');g.strokeStyle=css('--card');g.lineWidth=2;
+    g.beginPath();g.arc(X(p.x),Y(p.y),4.5,0,7);g.fill();g.stroke();
+    if(p.label){
+      const rightSide=X(p.x)>L+pw*0.78;
+      placeLabel(p.label,rightSide?X(p.x)-8:X(p.x)+8,Y(p.y)-7,rightSide?'right':'left',css(p.color||'--ink'));
+    }
+  });
 }
 const line=(f,x0,x1,n=60)=>Array.from({length:n+1},(_,i)=>{const x=x0+(x1-x0)*i/n;return[x,f(x)]});
 
@@ -81,13 +165,15 @@ window.addEventListener('resize',()=>resizers.forEach(f=>f()));
 if(window.matchMedia)matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>resizers.forEach(f=>f()));
 function widget(host,{controls,compute,draw,outs}){
   const vals={};const box=el('<div class="card"></div>').firstChild;host.appendChild(box);
-  const cv=el('<canvas role="img" aria-label="Interactive chart; key numbers are listed below it"></canvas>').firstChild,out=el('<div class="out"></div>').firstChild,note=el('<div class="key" style="display:none"></div>').firstChild;
+  const cv=draw?el('<canvas role="img" aria-label="Interactive chart; key numbers are listed below it"></canvas>').firstChild:null;
+  const out=el('<div class="out"></div>').firstChild,note=el('<div class="key" style="display:none"></div>').firstChild;
   const ctl=el('<div></div>');
   controls.forEach(c=>{vals[c.id]=c.v;const uid='s'+(++uidN);const r=el(`<div class="ctl"><label for="${uid}">${c.l}</label><input id="${uid}" type="range" min="${c.min}" max="${c.max}" step="${c.step||1}" value="${c.v}"><span aria-hidden="true">${c.v}</span></div>`);
     const inp=r.querySelector('input'),sp=r.querySelector('span');
     inp.oninput=()=>{vals[c.id]=+inp.value;sp.textContent=inp.value;update()};ctl.appendChild(r)});
-  box.append(cv,ctl,out,note);
-  function update(){const r=compute(vals);if(draw)chart(cv,draw(vals,r));
+  if(cv)box.append(cv);
+  box.append(ctl,out,note);
+  function update(){const r=compute(vals);if(draw&&cv)chart(cv,draw(vals,r));
     out.innerHTML=outs(vals,r).map(o=>`<div>${o[0]}<b>${o[1]}</b></div>`).join('');
     if(r.note){note.style.display='block';note.textContent=r.note}else note.style.display='none'}
   resizers.push(update);setTimeout(update,0);
@@ -102,9 +188,18 @@ budget(h){
   h.appendChild(el('<h3>Budget line &amp; optimal choice</h3><p class="lead">Spend income on goods X and Y. The consumer maximizes utility U = X<sup>α</sup>Y<sup>1−α</sup>. Change prices and income and watch the optimum and the indifference curve move.</p>'));
   widget(h,{controls:[{id:'I',l:'Income ($)',min:20,max:200,v:100,step:5},{id:'px',l:'Price of X',min:1,max:20,v:5},{id:'py',l:'Price of Y',min:1,max:20,v:10},{id:'a',l:'Taste for X (α)',min:.1,max:.9,step:.05,v:.5}],
    compute:v=>{const x=v.a*v.I/v.px,y=(1-v.a)*v.I/v.py;return{x,y,u:Math.pow(x,v.a)*Math.pow(y,1-v.a),note:`Opportunity cost of one X = ${f1(v.px/v.py)} units of Y. At the optimum, MU_x/P_x = MU_y/P_y (the marginal rate of substitution equals the price ratio).`}},
-   draw:(v,r)=>{const xm=v.I/v.px*1.15,ym=v.I/v.py*1.15;return{xmax:Math.max(xm,1),ymax:Math.max(ym,1),xl:'Good X',yl:'Good Y',
-     curves:[{pts:[[0,v.I/v.py],[v.I/v.px,0]],color:'--c1',label:'Budget'},{pts:line(x=>Math.pow(r.u/Math.pow(x,v.a),1/(1-v.a)),Math.max(.05,xm*.01),xm,120),color:'--c2',label:'Indifference',dash:1}],
-     points:[{x:r.x,y:r.y,label:'Optimum'}]}},
+   draw:(v,r)=>{
+     const xm=Math.max(40,Math.ceil(v.I/v.px*1.1/10)*10),ym=Math.max(25,Math.ceil(v.I/v.py*1.1/5)*5);
+     const indPts=Array.from({length:160},(_,i)=>{const x=Math.max(.02,Math.pow((i+1)/160,1.8)*xm);return[x,Math.pow(r.u/Math.pow(x,v.a),1/(1-v.a))]});
+     const moved=v.I!==100||v.px!==5||v.py!==10;
+     return{xmax:xm,ymax:ym,xl:'Good X',yl:'Good Y',
+       fills:[{pts:[[0,0],[0,v.I/v.py],[v.I/v.px,0]],color:'--fill',label:'Affordable set'}],
+       curves:[
+         ...(moved?[{pts:[[0,10],[20,0]],color:'--mute',label:'Initial budget',dash:[3,3],width:1.5,lx:16}]:[]),
+         {pts:[[0,v.I/v.py],[v.I/v.px,0]],color:'--c1',label:'Budget',lx:v.I/v.px*.85},
+         {pts:indPts,color:'--c2',label:'Indifference (U)',dash:1,lx:Math.min(xm*.9,r.x*1.6)}
+       ],
+       points:[{x:r.x,y:r.y,label:'Optimum'}]}},
    outs:(v,r)=>[['Best X',f1(r.x)],['Best Y',f1(r.y)],['Utility',f1(r.u)]]});
 },
 advantage(h){
@@ -123,9 +218,17 @@ advantage(h){
 ppf(h){
   h.appendChild(el('<h3>Production possibilities frontier</h3><p class="lead">An economy makes Food and Gadgets. The frontier is bowed out because resources are not equally good at both jobs, so the opportunity cost of Food rises as you make more of it. Slide along the frontier and watch the slope.</p>'));
   widget(h,{controls:[{id:'A',l:'Max Food',min:20,max:100,v:80,step:5},{id:'B',l:'Max Gadgets',min:20,max:100,v:60,step:5},{id:'x',l:'Food produced',min:0,max:100,v:40,step:1}],
-   compute:v=>{const x=Math.min(v.x,v.A),y=v.B*Math.sqrt(1-x*x/(v.A*v.A)),oc=y>0.5?(v.B*v.B*x)/(v.A*v.A*y):Infinity;
+   compute:v=>{const x=Math.min(v.x,v.A),y=v.B*Math.sqrt(Math.max(0,1-x*x/(v.A*v.A))),oc=y>0.5?(v.B*v.B*x)/(v.A*v.A*y):Infinity;
      return{x,y,oc,note:'Points on the curve are efficient. Points inside waste resources (unemployment, inefficiency); points outside are unattainable today, but growth (more resources or better technology) pushes the frontier out.'}},
-   draw:(v,r)=>({xmax:v.A*1.1,ymax:v.B*1.1,xl:'Food',yl:'Gadgets',curves:[{pts:line(x=>v.B*Math.sqrt(Math.max(0,1-x*x/(v.A*v.A))),0,v.A,80),color:'--c1',label:'PPF'}],points:[{x:r.x,y:r.y,label:'You are here'}]}),
+   draw:(v,r)=>{
+     const tan=isFinite(r.oc)&&r.oc>0?[[Math.max(0,r.x-22),r.y+r.oc*Math.min(r.x,22)],[Math.min(110,r.x+22),r.y-r.oc*(Math.min(110,r.x+22)-r.x)]]:null;
+     return{xmax:110,ymax:110,xl:'Food',yl:'Gadgets',
+       fills:[{pts:[...line(x=>v.B*Math.sqrt(Math.max(0,1-x*x/(v.A*v.A))),0,v.A,80),[0,0]],color:'--fill',label:'Feasible set'}],
+       curves:[
+         {pts:line(x=>v.B*Math.sqrt(Math.max(0,1-x*x/(v.A*v.A))),0,v.A,100),color:'--c1',label:'PPF',lx:v.A*.85},
+         ...(tan?[{pts:tan,color:'--c2',dash:[5,4],label:`Slope = −${f1(r.oc)}`,lx:tan[1][0]}]:[])
+       ],
+       points:[{x:r.x,y:r.y,label:'You are here'}]}},
    outs:(v,r)=>[['Food',f1(r.x)],['Gadgets',f1(r.y)],['Opportunity cost of 1 more Food',isFinite(r.oc)?f1(r.oc)+' Gadgets':'all remaining Gadgets']]});
 },
 pricecontrol(h){
@@ -134,17 +237,38 @@ pricecontrol(h){
    compute:v=>{const P0=(v.D+2*v.S)/3,Q0=v.D-P0,P=v.p>0?v.p:P0,Qd=Math.max(0,v.D-P),Qs=Math.max(0,2*(P-v.S)),Q=Math.min(Qd,Qs);
      const kind=v.p===0?'none':v.p<P0?'ceiling':v.p>P0?'floor':'none';
      return{P0,Q0,P,Qd,Qs,Q,kind,note:kind==='ceiling'?`A binding price ceiling: only ${f1(Q)} units trade, and ${f1(Qd-Qs)} units of demand go unmet (shortage). Sellers decide who gets the scarce goods, so quality, queues and black markets can appear.`:kind==='floor'?`A binding price floor: buyers want only ${f1(Qd)} but sellers would like to sell ${f1(Qs)}, leaving a surplus of ${f1(Qs-Qd)} units (like unemployment under a binding minimum wage).`:'No binding control: the market clears at equilibrium.'}},
-   draw:(v,r)=>({xmax:v.D,ymax:v.D,xl:'Quantity',yl:'Price',curves:[{pts:line(q=>v.D-q,0,v.D),color:'--c1',label:'Demand'},{pts:line(q=>v.S+q/2,0,2*(v.D-v.S)),color:'--c2',label:'Supply'},...(v.p>0?[{pts:[[0,v.p],[v.D,v.p]],color:'--c4',label:'Legal price',dash:1}]:[])],points:[{x:r.Q,y:r.P,label:r.kind==='none'?'Equilibrium':'Quantity traded'}]}),
+   draw:(v,r)=>{
+     const gap=r.kind!=='none'&&Math.abs(r.Qd-r.Qs)>.5;
+     return{xmax:160,ymax:160,xl:'Quantity',yl:'Price',
+       fills:r.kind!=='none'&&r.Q<r.Q0?[{pts:[[r.Q,v.D-r.Q],[r.Q0,r.P0],[r.Q,v.S+r.Q/2]],color:'--fbad',label:'Deadweight loss'}]:[],
+       curves:[
+         {pts:line(q=>v.D-q,0,v.D),color:'--c1',label:'Demand',lx:v.D*.85},
+         {pts:line(q=>v.S+q/2,0,160),color:'--c2',label:'Supply',lx:140},
+         ...(v.p>0?[{pts:[[0,v.p],[160,v.p]],color:'--c4',label:'Legal price',dash:1,lx:150}]:[]),
+         ...(gap?[{pts:[[Math.min(r.Qd,r.Qs),r.P],[Math.max(r.Qd,r.Qs),r.P]],color:'--bad',width:3.5,label:(r.kind==='ceiling'?'Shortage: ':'Surplus: ')+f1(Math.abs(r.Qd-r.Qs)),lx:(r.Qd+r.Qs)/2}]:[])
+       ],
+       points:[
+         {x:r.Q,y:r.P,label:r.kind==='none'?'Equilibrium':'Traded'},
+         ...(r.kind!=='none'?[{x:r.Q0,y:r.P0,label:'Equilibrium',color:'--mute',drop:false}]:[])
+       ]}},
    outs:(v,r)=>[['Equilibrium price',f1(r.P0)],['Quantity demanded',f1(r.Qd)],['Quantity supplied',f1(r.Qs)],[r.kind==='ceiling'?'Shortage':r.kind==='floor'?'Surplus':'Shortage / surplus',f1(Math.abs(r.Qd-r.Qs))]]});
 },
 costs(h){
   h.appendChild(el('<h3>Firm costs &amp; profit maximization</h3><p class="lead">TC = F + c·q + d·q². A price-taking firm produces where P = MC (if P covers average variable cost).</p>'));
   widget(h,{controls:[{id:'F',l:'Fixed cost F',min:0,max:200,v:50,step:5},{id:'c',l:'Linear cost c',min:0,max:20,v:5},{id:'d',l:'Rising cost d',min:.2,max:2,step:.1,v:.5},{id:'P',l:'Market price P',min:0,max:50,v:20}],
    compute:v=>{const q=v.P>v.c?(v.P-v.c)/(2*v.d):0,tc=v.F+v.c*q+v.d*q*q,pi=v.P*q-tc,avc=v.c+v.d*q;
-     return{q,tc,pi,note:q===0?'Price is below minimum AVC: the firm shuts down in the short run and loses only its fixed cost.':pi<0?'Producing at a loss, but price covers AVC, so the firm loses less than the fixed cost by operating (short run).':'Positive economic profit: in a competitive market this attracts entry, pushing price down.'}},
-   draw:(v,r)=>{const xm=Math.max(30,Math.ceil(r.q*1.3));return{xmax:xm,ymax:60,xl:'Quantity',yl:'$ per unit',curves:[
-     {pts:line(q=>v.c+2*v.d*q,0,xm),color:'--c2',label:'MC'},{pts:line(q=>v.F/q+v.c+v.d*q,.8,xm),color:'--c1',label:'ATC'},{pts:line(q=>v.c+v.d*q,0,xm),color:'--c3',label:'AVC',dash:1},{pts:[[0,v.P],[xm,v.P]],color:'--c4',label:'P = MR'}],
-     points:r.q>0?[{x:r.q,y:v.P,label:'q*'}]:[]}},
+     return{q,tc,pi,avc,note:q===0?'Price is below minimum AVC: the firm shuts down in the short run and loses only its fixed cost.':pi<0?'Producing at a loss, but price covers AVC, so the firm loses less than the fixed cost by operating (short run).':'Positive economic profit: in a competitive market this attracts entry, pushing price down.'}},
+   draw:(v,r)=>{
+     const xm=Math.max(30,Math.ceil(r.q*1.3)),atcQ=r.q>0?r.tc/r.q:0;
+     return{xmax:xm,ymax:60,xl:'Quantity',yl:'$ per unit',
+       fills:r.q>0&&Math.abs(r.pi)>.1?[{pts:[[0,atcQ],[r.q,atcQ],[r.q,v.P],[0,v.P]],color:r.pi>=0?'--f3':'--fbad',label:r.pi>=0?'Economic profit':'Short-run loss'}]:[],
+       curves:[
+         {pts:line(q=>v.c+2*v.d*q,0,xm,100),color:'--c2',label:'MC',lx:xm*.75},
+         ...(v.F>0?[{pts:line(q=>v.F/q+v.c+v.d*q,.15,xm,140),color:'--c1',label:'ATC',lx:xm*.88}]:[]),
+         {pts:line(q=>v.c+v.d*q,0,xm,80),color:'--c3',label:v.F===0?'AVC = ATC':'AVC',dash:1,lx:xm*.95},
+         {pts:[[0,v.P],[xm,v.P]],color:'--c4',label:'P = MR',lx:xm*.6}
+       ],
+       points:r.q>0?[{x:r.q,y:v.P,label:'q*'}]:[]}},
    outs:(v,r)=>[['Output q*',f1(r.q)],['Total cost',f1(r.tc)],['Profit',f1(r.pi)],['Min ATC (zero-profit price)',f1(v.c+2*Math.sqrt(v.F*v.d))]]});
 },
 supplydemand(h){
@@ -153,17 +277,38 @@ supplydemand(h){
    compute:v=>{const Q0=(v.D-v.S)/1.5,P0=v.D-Q0,Q=Math.max(0,(v.D-v.S-v.t)/1.5),Pb=Q>0?v.D-Q:v.D,Ps=Q>0?Pb-v.t:v.S;
      return{Q0,P0,Q,Pb,Ps,cs:.5*Q*(v.D-Pb),ps:.5*Q*(Ps-v.S),rev:v.t*Q,dwl:.5*(Q0-Q)*Math.min(v.t,v.D-v.S),note:Q===0&&v.t>0?'The tax is so large that no trade happens: the whole market disappears and all of the original surplus is lost.':v.t>0?`Buyers pay $${f1(Pb-P0)} more and sellers receive $${f1(P0-Ps)} less per unit. The side with the steeper (less elastic) curve bears more of the tax.`:'No tax: equilibrium maximizes total surplus (CS + PS).'}},
    draw:(v,r)=>({xmax:120,ymax:150,xl:'Quantity',yl:'Price',
-     fills:[{pts:[[0,v.D],[0,r.Pb],[r.Q,r.Pb]],color:'rgba(29,95,168,.25)'},{pts:[[0,r.Ps],[0,v.S],[r.Q,r.Ps]],color:'rgba(21,128,61,.25)'},...(v.t>0?[{pts:[[r.Q,r.Pb],[r.Q0,r.P0],[r.Q,r.Ps]],color:'rgba(185,28,28,.3)'}]:[])],
-     curves:[{pts:line(q=>v.D-q,0,120),color:'--c1',label:'Demand'},{pts:line(q=>v.S+.5*q,0,120),color:'--c2',label:'Supply'},...(v.t>0?[{pts:line(q=>v.S+v.t+.5*q,0,120),color:'--c2',label:'S + tax',dash:1}]:[])],
-     points:[{x:r.Q,y:r.Pb,label:v.t>0?'Buyer price':'Equilibrium'}]}),
+     fills:[
+       ...(r.Q>0?[{pts:[[0,v.D],[0,r.Pb],[r.Q,r.Pb]],color:'--f1',label:'CS'},{pts:[[0,r.Ps],[0,v.S],[r.Q,r.Ps]],color:'--f3',label:'PS'}]:[]),
+       ...(v.t>0&&r.Q>0?[{pts:[[0,r.Pb],[r.Q,r.Pb],[r.Q,r.Ps],[0,r.Ps]],color:'--f4',label:'Tax rev.'}]:[]),
+       ...(v.t>0&&r.Q<r.Q0?[{pts:[[r.Q,r.Pb],[r.Q0,r.P0],[r.Q,r.Ps]],color:'--fbad',label:'DWL'}]:[])
+     ],
+     curves:[
+       {pts:line(q=>v.D-q,0,120),color:'--c1',label:'Demand',lx:Math.min(115,v.D-5)},
+       {pts:line(q=>v.S+.5*q,0,120),color:'--c2',label:'Supply',lx:115},
+       ...(v.t>0?[{pts:line(q=>v.S+v.t+.5*q,0,120),color:'--c2',label:'S + tax',dash:1,lx:105}]:[])
+     ],
+     points:[
+       {x:r.Q,y:r.Pb,label:v.t>0?'Buyer price':'Equilibrium'},
+       ...(v.t>0&&r.Q>0?[{x:r.Q,y:r.Ps,label:'Seller price'}]:[])
+     ]}),
    outs:(v,r)=>[['Quantity',f1(r.Q)],['Buyers pay',f1(r.Pb)],['Sellers receive',f1(r.Ps)],['Consumer surplus',f0(r.cs)],['Producer surplus',f0(r.ps)],['Tax revenue',f0(r.rev)],['Deadweight loss',f0(r.dwl)]]});
 },
 cournot(h){
   h.appendChild(el('<h3>From monopoly to competition</h3><p class="lead">Market demand P = a − Q, marginal cost c. With n symmetric quantity-setting firms (Cournot), each produces (a−c)/(n+1). n = 1 is monopoly; as n grows, the outcome approaches perfect competition (P = MC).</p>'));
   widget(h,{controls:[{id:'a',l:'Demand intercept a',min:60,max:120,v:100,step:5},{id:'c',l:'Marginal cost c',min:0,max:40,v:20,step:5},{id:'n',l:'Number of firms n',min:1,max:20,v:1}],
    compute:v=>{const Q=v.n*(v.a-v.c)/(v.n+1),P=v.a-Q,Qc=v.a-v.c;return{Q,P,Qc,prof:(P-v.c)*Q,dwl:.5*(Qc-Q)*(P-v.c),note:v.n===1?'Monopoly: restrict output until MR = MC, charge a price above marginal cost, earn profit, and create deadweight loss.':v.n>=15?'Close to perfect competition: price near marginal cost, little profit, little deadweight loss.':'Oligopoly: more rivals means lower prices and less deadweight loss.'}},
-   draw:(v,r)=>({xmax:v.a,ymax:v.a,xl:'Quantity',yl:'Price',fills:[{pts:[[0,v.c],[0,r.P],[r.Q,r.P],[r.Q,v.c]],color:'rgba(194,65,12,.25)'},{pts:[[r.Q,r.P],[r.Qc,v.c],[r.Q,v.c]],color:'rgba(185,28,28,.3)'}],
-     curves:[{pts:line(q=>v.a-q,0,v.a),color:'--c1',label:'Demand'},{pts:[[0,v.c],[v.a,v.c]],color:'--c2',label:'MC'},...(v.n===1?[{pts:line(q=>v.a-2*q,0,v.a/2),color:'--c3',label:'MR (monopoly)',dash:1}]:[])],points:[{x:r.Q,y:r.P,label:'Market outcome'}]}),
+   draw:(v,r)=>({xmax:120,ymax:120,xl:'Quantity',yl:'Price',
+     fills:[
+       {pts:[[0,v.a],[0,r.P],[r.Q,r.P]],color:'--f1',label:'CS'},
+       {pts:[[0,v.c],[0,r.P],[r.Q,r.P],[r.Q,v.c]],color:'--f2',label:'Profit'},
+       {pts:[[r.Q,r.P],[r.Qc,v.c],[r.Q,v.c]],color:'--fbad',label:'DWL'}
+     ],
+     curves:[
+       {pts:line(q=>v.a-q,0,v.a),color:'--c1',label:'Demand',lx:v.a*.9},
+       {pts:[[0,v.c],[120,v.c]],color:'--c2',label:'MC',lx:115},
+       ...(v.n===1?[{pts:line(q=>v.a-2*q,0,v.a/2),color:'--c3',label:'MR (monopoly)',dash:1,lx:v.a*.45}]:[])
+     ],
+     points:[{x:r.Q,y:r.P,label:'Market outcome'}]}),
    outs:(v,r)=>[['Price',f1(r.P)],['Total quantity',f1(r.Q)],['Total profit',f0(r.prof)],['Deadweight loss',f0(r.dwl)]]});
 },
 lorenz(h){
@@ -172,7 +317,12 @@ lorenz(h){
   const w=widget(h,{controls:ids.map((id,i)=>({id,l:['Poorest 20%','Second 20%','Middle 20%','Fourth 20%','Richest 20%'][i],min:1,max:200,v:[10,20,30,45,95][i]})),
    compute:v=>{const s=ids.map(i=>v[i]).sort((a,b)=>a-b),t=s.reduce((x,y)=>x+y,0);let c=0;const pts=[[0,0]];s.forEach((x,k)=>{c+=x/t*100;pts.push([(k+1)*20,c])});
      let area=0;for(let k=0;k<5;k++)area+=(pts[k][1]+pts[k+1][1])/2*20;const gini=1-area/5000;return{pts,gini,top:s[4]/t*100,bot:s[0]/t*100,note:'Groups are re-ordered from poorest to richest automatically. With only five groups the Gini is an approximation (it slightly understates real inequality within groups).'}},
-   draw:(v,r)=>({xmax:100,ymax:100,xl:'Cumulative % of households',yl:'Cumulative % of income',curves:[{pts:[[0,0],[100,100]],color:'--mute',label:'Equality',dash:1},{pts:r.pts,color:'--c2',label:'Lorenz'}],fills:[{pts:[...r.pts,[100,100]],color:'rgba(194,65,12,.15)'}]}),
+   draw:(v,r)=>({xmax:100,ymax:100,xl:'Cumulative % of households',yl:'Cumulative % of income',
+     fills:[{pts:[...r.pts,[100,100]],color:'--f2',label:'Inequality gap'}],
+     curves:[
+       {pts:[[0,0],[100,100]],color:'--mute',label:'Equality (45°)',dash:1,lx:48},
+       {pts:r.pts,color:'--c2',label:'Lorenz curve',dots:true,lx:76}
+     ]}),
    outs:(v,r)=>[['Gini',r.gini.toFixed(2)],['Top 20% share',f0(r.top)+'%'],['Bottom 20% share',f0(r.bot)+'%']]});
   const row=el('<div class="row" style="margin-top:8px">Presets: </div>').firstChild;
   [['Equal',[1,1,1,1,1]],['Moderate',[8,14,18,24,36]],['High inequality',[3,8,13,22,54]]].forEach(([n,a])=>{const b=el(`<button class="btn">${n}</button>`).firstChild;
@@ -183,13 +333,30 @@ growth(h){
   h.appendChild(el('<h3>The power of compounding growth</h3><p class="lead">Small differences in growth rates become huge differences in living standards. Rule of 70: doubling time ≈ 70 / growth rate (in %).</p>'));
   widget(h,{controls:[{id:'y0',l:'Starting GDP/capita ($k)',min:1,max:50,v:10},{id:'g1',l:'Country A growth (%)',min:0,max:10,step:.5,v:2},{id:'g2',l:'Country B growth (%)',min:0,max:10,step:.5,v:5},{id:'T',l:'Years',min:10,max:100,v:50,step:5}],
    compute:v=>{const A=v.y0*Math.pow(1+v.g1/100,v.T),B=v.y0*Math.pow(1+v.g2/100,v.T);return{A,B,note:A===B?'Same growth rate, same outcome.':`Both start at the same income, but after ${v.T} years ${B>A?'B':'A'} is ${f1(Math.max(A,B)/Math.min(A,B))}× as rich as ${B>A?'A':'B'}.`}},
-   draw:(v,r)=>({xmax:v.T,ymax:Math.max(r.A,r.B)*1.05,xl:'Years',yl:'GDP per capita ($k)',curves:[{pts:line(t=>v.y0*Math.pow(1+v.g1/100,t),0,v.T),color:'--c1',label:'A'},{pts:line(t=>v.y0*Math.pow(1+v.g2/100,t),0,v.T),color:'--c2',label:'B'}]}),
+   draw:(v,r)=>({xmax:v.T,ymax:Math.max(r.A,r.B)*1.08,xl:'Years',yl:'GDP per capita ($k)',
+     curves:[
+       {pts:line(t=>v.y0*Math.pow(1+v.g1/100,t),0,v.T),color:'--c1',label:v.g1===v.g2?'Country A & B':`Country A (${v.g1}%)`},
+       ...(v.g1===v.g2?[]:[{pts:line(t=>v.y0*Math.pow(1+v.g2/100,t),0,v.T),color:'--c2',label:`Country B (${v.g2}%)`}])
+     ]}),
    outs:(v,r)=>[['A ends at','$'+f1(r.A)+'k'],['B ends at','$'+f1(r.B)+'k'],['A doubles in',v.g1?f1(70/v.g1)+' yrs':'never'],['B doubles in',v.g2?f1(70/v.g2)+' yrs':'never']]});
 },
 labor(h){
   h.appendChild(el('<h3>Unemployment &amp; inflation calculators</h3><p class="lead">Only people actively seeking work count as unemployed; the CPI tracks the price of a fixed basket.</p>'));
   widget(h,{controls:[{id:'pop',l:'Adult population (m)',min:100,max:300,v:260},{id:'emp',l:'Employed (m)',min:50,max:200,v:155},{id:'un',l:'Unemployed (m)',min:0,max:30,v:7,step:.5}],
-   compute:v=>{const lf=v.emp+v.un;if(lf>v.pop)return{lf:v.pop,ur:v.un/lf*100,lfpr:100,note:'Employed + unemployed cannot exceed the adult population. Lower one of the sliders.'};return{lf,ur:v.un/lf*100,lfpr:lf/v.pop*100,note:'Discouraged workers who stop searching leave the labor force, so the unemployment rate can fall without any job being created.'}},
+   compute:v=>{const lf=v.emp+v.un;if(lf>v.pop)return{lf:v.pop,emp:v.emp,un:v.un,nilf:0,ur:v.un/lf*100,lfpr:100,note:'Employed + unemployed cannot exceed the adult population. Lower one of the sliders.'};return{lf,emp:v.emp,un:v.un,nilf:v.pop-lf,ur:v.un/lf*100,lfpr:lf/v.pop*100,note:'Discouraged workers who stop searching leave the labor force, so the unemployment rate can fall without any job being created.'}},
+   draw:(v,r)=>({height:155,
+     bars:[
+       {label:`Adult population (${f1(Math.max(v.pop,r.emp+r.un))}m)`,total:Math.max(v.pop,r.emp+r.un),segs:[
+         {v:r.emp,c:'--c3',l:`Employed ${f1(r.emp)}m`},
+         {v:r.un,c:'--bad',l:`Unemp. ${f1(r.un)}m`},
+         {v:r.nilf,c:'--mute',l:`Not in LF ${f1(r.nilf)}m`}
+       ]},
+       {label:`Labor force (${f1(r.emp+r.un)}m · ${f1(r.lfpr)}% participation)`,total:r.emp+r.un,segs:[
+         {v:r.emp,c:'--c3',l:`Employed (${f1(r.emp/(r.emp+r.un)*100)}%)`},
+         {v:r.un,c:'--bad',l:`Unemployed (${f1(r.ur)}%)`}
+       ]}
+     ],
+     legend:[['Employed','--c3'],['Unemployed','--bad'],['Not in labor force','--mute']]}),
    outs:(v,r)=>[['Labor force',f1(r.lf)+'m'],['Unemployment rate',f1(r.ur)+'%'],['Participation rate',f1(r.lfpr)+'%']]});
   const b=el(`<div class="card"><b>CPI basket</b> (fixed quantities)<table><tr><th>Good</th><th>Qty</th><th>Price yr 0</th><th>Price yr 1</th></tr>
   <tr><td>Rent (months)</td><td>12</td><td><input type=number value=1000></td><td><input type=number value=1060></td></tr>
@@ -208,15 +375,31 @@ labor(h){
 gov(h){
   h.appendChild(el('<h3>Externalities: why markets sometimes need government</h3><p class="lead">Demand P = 100 − Q, private marginal cost P = 10 + 0.5Q. If each unit also imposes an external cost e (e.g. pollution), the market overproduces. A Pigouvian tax equal to e fixes it.</p>'));
   widget(h,{controls:[{id:'e',l:'External cost per unit e',min:0,max:40,v:20},{id:'tax',l:'Pigouvian tax',min:0,max:40,v:0}],
-   compute:v=>{const Qm=(90-v.tax)/1.5,Qs=(90-v.e)/1.5,Q=Qm;const dwl=v.e>0?.5*Math.abs(Q-Qs)*Math.abs(v.e-v.tax)*1.0:0;
+   compute:v=>{const Qm=(90-v.tax)/1.5,Qs=(90-v.e)/1.5;
      return{Qm,Qs,dwl:.5*Math.abs(Qm-Qs)*Math.abs(v.e-v.tax),note:v.tax===v.e?'Tax equals the external cost: the private decision now matches the social optimum.':v.tax<v.e?'Market quantity exceeds the efficient quantity: some units cost society more than they are worth to buyers.':'The tax overshoots: too little is produced.'}},
-   draw:(v,r)=>({xmax:90,ymax:100,xl:'Quantity',yl:'Price / cost',curves:[{pts:line(q=>100-q,0,90),color:'--c1',label:'Demand'},{pts:line(q=>10+v.tax+.5*q,0,90),color:'--c2',label:'Private MC + tax'},{pts:line(q=>10+v.e+.5*q,0,90),color:'--c4',label:'Social MC',dash:1}],
-     points:[{x:r.Qm,y:100-r.Qm,label:'Market'},{x:r.Qs,y:100-r.Qs,label:'Efficient'}]}),
+   draw:(v,r)=>({xmax:90,ymax:100,xl:'Quantity',yl:'Price / cost',
+     fills:v.tax!==v.e?[{pts:[[r.Qm,100-r.Qm],[r.Qm,10+v.e+.5*r.Qm],[r.Qs,100-r.Qs]],color:'--fbad',label:'Deadweight loss'}]:[],
+     curves:[
+       {pts:line(q=>100-q,0,90),color:'--c1',label:'Demand',lx:82},
+       {pts:line(q=>10+v.tax+.5*q,0,90),color:'--c2',label:v.tax===v.e?'Private MC + tax = Social MC':'Private MC + tax',lx:82},
+       ...(v.tax===v.e?[]:[{pts:line(q=>10+v.e+.5*q,0,90),color:'--c4',label:'Social MC',dash:1,lx:72}])
+     ],
+     points:v.tax===v.e?[{x:r.Qs,y:100-r.Qs,label:'Market = Efficient'}]:[{x:r.Qm,y:100-r.Qm,label:'Market'},{x:r.Qs,y:100-r.Qs,label:'Efficient'}]}),
    outs:(v,r)=>[['Market quantity',f1(r.Qm)],['Efficient quantity',f1(r.Qs)],['Deadweight loss',f0(r.dwl)]]});
   h.appendChild(el('<h3>Fiscal multiplier</h3>'));
   widget(h,{controls:[{id:'mpc',l:'Marginal propensity to consume',min:0,max:.95,step:.05,v:.75},{id:'dg',l:'Gov. spending increase ($b)',min:0,max:500,v:100,step:10}],
-   compute:v=>({m:1/(1-v.mpc),note:'Each dollar of new spending becomes income for someone, who spends a fraction (MPC) of it, and so on. Real-world multipliers are smaller because of taxes, imports, and crowding out.'}),
-   outs:(v,r)=>[['Multiplier 1/(1−MPC)',f1(r.m)],['Change in GDP','$'+f0(v.dg*r.m)+'b']]});
+   compute:v=>({m:1/(1-v.mpc),tot:v.dg/(1-v.mpc),note:'Each dollar of new spending becomes income for someone, who spends a fraction (MPC) of it, and so on. Real-world multipliers are smaller because of taxes, imports, and crowding out.'}),
+   draw:(v,r)=>{
+     const pts=[];let sum=0;for(let k=1;k<=15;k++){sum+=v.dg*Math.pow(v.mpc,k-1);pts.push([k,sum])}
+     const ym=Math.max(100,Math.ceil(r.tot*1.12/100)*100);
+     return{height:220,xmax:15,ymax:ym,xl:'Spending round',yl:'Cumulative ΔGDP ($b)',
+       fills:v.dg>0?[{pts:[[1,0],...pts,[15,0]],color:'--f1',label:'Cumulative GDP impact'}]:[],
+       curves:[
+         {pts:[[0,r.tot],[15,r.tot]],color:'--c2',dash:1,label:`Total limit ($${f0(r.tot)}b)`,lx:14},
+         {pts,color:'--c1',dots:true,label:'Cumulative ΔGDP',lx:11}
+       ]};
+   },
+   outs:(v,r)=>[['Multiplier 1/(1−MPC)',f1(r.m)],['Change in GDP','$'+f0(r.tot)+'b']]});
 }
 };
 
