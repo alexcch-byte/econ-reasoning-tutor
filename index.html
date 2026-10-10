@@ -181,6 +181,8 @@ function widget(host,{controls,compute,draw,outs}){
 }
 const f1=n=>(Math.round(n*10)/10).toLocaleString();
 const f0=n=>Math.round(n).toLocaleString();
+const money=k=>k>=1e6?'$'+f1(k/1e6)+'b':k>=1e3?'$'+f1(k/1e3)+'m':'$'+f1(k)+'k';
+const times=x=>x>=100?'about '+Math.round(x).toLocaleString()+'×':f1(x)+'×';
 
 // ---------- explore widgets ----------
 const W={
@@ -216,42 +218,21 @@ advantage(h){
   b.querySelectorAll('input').forEach(i=>{i.setAttribute('aria-label',nm[i.id]);i.oninput=upd});upd();
 },
 ppf(h){
-  h.appendChild(el('<h3>Production possibilities frontier</h3><p class="lead">An economy makes Food and Gadgets. The frontier is bowed out because resources are not equally good at both jobs, so the opportunity cost of Food rises as you make more of it. Slide along the frontier and watch the slope.</p>'));
-  widget(h,{controls:[{id:'A',l:'Max Food',min:20,max:100,v:80,step:5},{id:'B',l:'Max Gadgets',min:20,max:100,v:60,step:5},{id:'x',l:'Food produced',min:0,max:100,v:40,step:1}],
-   compute:v=>{const x=Math.min(v.x,v.A),y=v.B*Math.sqrt(Math.max(0,1-x*x/(v.A*v.A))),oc=y>0.5?(v.B*v.B*x)/(v.A*v.A*y):Infinity;
+  h.appendChild(el('<h3>Production possibilities frontier</h3><p class="lead">An economy makes Food and Gadgets. The frontier is bowed out because resources are not equally good at both jobs, so the opportunity cost of Food rises as you make more of it. Slide along the frontier and watch the opportunity cost.</p>'));
+  widget(h,{controls:[{id:'A',l:'Max Food',min:20,max:100,v:80,step:5},{id:'B',l:'Max Gadgets',min:20,max:100,v:60,step:5},{id:'pc',l:'Food produced (% of max)',min:0,max:100,v:50,step:1}],
+   compute:v=>{const x=v.A*v.pc/100,y=v.B*Math.sqrt(Math.max(0,1-x*x/(v.A*v.A))),oc=y>0.5?(v.B*v.B*x)/(v.A*v.A*y):Infinity;
      return{x,y,oc,note:'Points on the curve are efficient. Points inside waste resources (unemployment, inefficiency); points outside are unattainable today, but growth (more resources or better technology) pushes the frontier out.'}},
-   draw:(v,r)=>{
-     const tan=isFinite(r.oc)&&r.oc>0?[[Math.max(0,r.x-22),r.y+r.oc*Math.min(r.x,22)],[Math.min(110,r.x+22),r.y-r.oc*(Math.min(110,r.x+22)-r.x)]]:null;
-     return{xmax:110,ymax:110,xl:'Food',yl:'Gadgets',
-       fills:[{pts:[...line(x=>v.B*Math.sqrt(Math.max(0,1-x*x/(v.A*v.A))),0,v.A,80),[0,0]],color:'--fill',label:'Feasible set'}],
-       curves:[
-         {pts:line(x=>v.B*Math.sqrt(Math.max(0,1-x*x/(v.A*v.A))),0,v.A,100),color:'--c1',label:'PPF',lx:v.A*.85},
-         ...(tan?[{pts:tan,color:'--c2',dash:[5,4],label:`Slope = −${f1(r.oc)}`,lx:tan[1][0]}]:[])
-       ],
-       points:[{x:r.x,y:r.y,label:'You are here'}]}},
+   draw:(v,r)=>({xmax:v.A*1.15,ymax:v.B*1.15,xl:'Food',yl:'Gadgets',curves:[{pts:line(x=>v.B*Math.sqrt(Math.max(0,1-x*x/(v.A*v.A))),0,v.A,80),color:'--c1',label:'PPF'}],points:[{x:r.x,y:r.y,label:'You are here'}]}),
    outs:(v,r)=>[['Food',f1(r.x)],['Gadgets',f1(r.y)],['Opportunity cost of 1 more Food',isFinite(r.oc)?f1(r.oc)+' Gadgets':'all remaining Gadgets']]});
 },
 pricecontrol(h){
-  h.appendChild(el('<h3>Price ceilings and floors</h3><p class="lead">Demand: Qd = D − P. Supply: Qs = 2(P − S). Set a legal price. Below equilibrium it is a ceiling (shortage); above it, a floor (surplus). Set it to 0 for no control.</p>'));
-  widget(h,{controls:[{id:'D',l:'Demand intercept D',min:60,max:150,v:100,step:5},{id:'S',l:'Supply intercept S',min:0,max:40,v:10,step:5},{id:'p',l:'Legal price (0 = none)',min:0,max:150,v:0,step:1}],
-   compute:v=>{const P0=(v.D+2*v.S)/3,Q0=v.D-P0,P=v.p>0?v.p:P0,Qd=Math.max(0,v.D-P),Qs=Math.max(0,2*(P-v.S)),Q=Math.min(Qd,Qs);
-     const kind=v.p===0?'none':v.p<P0?'ceiling':v.p>P0?'floor':'none';
-     return{P0,Q0,P,Qd,Qs,Q,kind,note:kind==='ceiling'?`A binding price ceiling: only ${f1(Q)} units trade, and ${f1(Qd-Qs)} units of demand go unmet (shortage). Sellers decide who gets the scarce goods, so quality, queues and black markets can appear.`:kind==='floor'?`A binding price floor: buyers want only ${f1(Qd)} but sellers would like to sell ${f1(Qs)}, leaving a surplus of ${f1(Qs-Qd)} units (like unemployment under a binding minimum wage).`:'No binding control: the market clears at equilibrium.'}},
-   draw:(v,r)=>{
-     const gap=r.kind!=='none'&&Math.abs(r.Qd-r.Qs)>.5;
-     return{xmax:160,ymax:160,xl:'Quantity',yl:'Price',
-       fills:r.kind!=='none'&&r.Q<r.Q0?[{pts:[[r.Q,v.D-r.Q],[r.Q0,r.P0],[r.Q,v.S+r.Q/2]],color:'--fbad',label:'Deadweight loss'}]:[],
-       curves:[
-         {pts:line(q=>v.D-q,0,v.D),color:'--c1',label:'Demand',lx:v.D*.85},
-         {pts:line(q=>v.S+q/2,0,160),color:'--c2',label:'Supply',lx:140},
-         ...(v.p>0?[{pts:[[0,v.p],[160,v.p]],color:'--c4',label:'Legal price',dash:1,lx:150}]:[]),
-         ...(gap?[{pts:[[Math.min(r.Qd,r.Qs),r.P],[Math.max(r.Qd,r.Qs),r.P]],color:'--bad',width:3.5,label:(r.kind==='ceiling'?'Shortage: ':'Surplus: ')+f1(Math.abs(r.Qd-r.Qs)),lx:(r.Qd+r.Qs)/2}]:[])
-       ],
-       points:[
-         {x:r.Q,y:r.P,label:r.kind==='none'?'Equilibrium':'Traded'},
-         ...(r.kind!=='none'?[{x:r.Q0,y:r.P0,label:'Equilibrium',color:'--mute',drop:false}]:[])
-       ]}},
-   outs:(v,r)=>[['Equilibrium price',f1(r.P0)],['Quantity demanded',f1(r.Qd)],['Quantity supplied',f1(r.Qs)],[r.kind==='ceiling'?'Shortage':r.kind==='floor'?'Surplus':'Shortage / surplus',f1(Math.abs(r.Qd-r.Qs))]]});
+  h.appendChild(el('<h3>Price ceilings and floors</h3><p class="lead">Demand: Qd = D − P. Supply: Qs = 2(P − S). Choose a control type (0 none, 1 ceiling = legal maximum, 2 floor = legal minimum) and a legal price. A control only matters if it is <b>binding</b>: a ceiling below equilibrium or a floor above it.</p>'));
+  widget(h,{controls:[{id:'D',l:'Demand intercept D',min:60,max:150,v:100,step:5},{id:'S',l:'Supply intercept S',min:0,max:40,v:10,step:5},{id:'mode',l:'Type: 0 none, 1 ceiling, 2 floor',min:0,max:2,v:1,step:1},{id:'p',l:'Legal price',min:1,max:150,v:30,step:1}],
+   compute:v=>{const P0=(v.D+2*v.S)/3,Q0=v.D-P0,p=Math.min(v.p,v.D),bind=(v.mode===1&&p<P0)||(v.mode===2&&p>P0),P=bind?p:P0,Qd=Math.max(0,v.D-P),Qs=Math.max(0,2*(P-v.S)),Q=Math.min(Qd,Qs),gap=(v.D-Q)-(v.S+Q/2),dwl=bind?.5*(Q0-Q)*gap:0;
+     const kind=bind?(v.mode===1?'ceiling':'floor'):'none';
+     return{P0,Q0,P,p,Qd,Qs,Q,kind,dwl,note:kind==='ceiling'?`Binding ceiling: only ${f1(Q)} units trade, and ${f1(Qd-Qs)} units of demand go unmet (shortage). Sellers decide who gets the scarce goods, so queues, lower quality and black markets can appear.`:kind==='floor'?`Binding floor: buyers want only ${f1(Qd)} but sellers would like to sell ${f1(Qs)}, leaving a surplus of ${f1(Qs-Qd)} units (like unemployment under a binding minimum wage).`:v.mode===0?'No control: the market clears at equilibrium.':`Not binding: a ${v.mode===1?'ceiling':'floor'} at ${f1(p)} is ${v.mode===1?'above':'below'} the equilibrium price of ${f1(P0)}, so it changes nothing.`}},
+   draw:(v,r)=>({xmax:v.D,ymax:v.D,xl:'Quantity',yl:'Price',curves:[{pts:line(q=>v.D-q,0,v.D),color:'--c1',label:'Demand'},{pts:line(q=>v.S+q/2,0,2*(v.D-v.S)),color:'--c2',label:'Supply'},...(v.mode>0?[{pts:[[0,r.p],[v.D,r.p]],color:'--c4',label:'Legal price',dash:1}]:[])],points:[{x:r.Q,y:r.P,label:r.kind==='none'?'Equilibrium':'Quantity traded'}]}),
+   outs:(v,r)=>[['Equilibrium price',f1(r.P0)],['Quantity demanded',f1(r.Qd)],['Quantity supplied',f1(r.Qs)],[r.kind==='ceiling'?'Shortage':r.kind==='floor'?'Surplus':'Shortage / surplus',f1(Math.abs(r.Qd-r.Qs))],['Deadweight loss',f0(r.dwl)]]});
 },
 costs(h){
   h.appendChild(el('<h3>Firm costs &amp; profit maximization</h3><p class="lead">TC = F + c·q + d·q². A price-taking firm produces where P = MC (if P covers average variable cost).</p>'));
@@ -332,17 +313,17 @@ lorenz(h){
 growth(h){
   h.appendChild(el('<h3>The power of compounding growth</h3><p class="lead">Small differences in growth rates become huge differences in living standards. Rule of 70: doubling time ≈ 70 / growth rate (in %).</p>'));
   widget(h,{controls:[{id:'y0',l:'Starting GDP/capita ($k)',min:1,max:50,v:10},{id:'g1',l:'Country A growth (%)',min:0,max:10,step:.5,v:2},{id:'g2',l:'Country B growth (%)',min:0,max:10,step:.5,v:5},{id:'T',l:'Years',min:10,max:100,v:50,step:5}],
-   compute:v=>{const A=v.y0*Math.pow(1+v.g1/100,v.T),B=v.y0*Math.pow(1+v.g2/100,v.T);return{A,B,note:A===B?'Same growth rate, same outcome.':`Both start at the same income, but after ${v.T} years ${B>A?'B':'A'} is ${f1(Math.max(A,B)/Math.min(A,B))}× as rich as ${B>A?'A':'B'}.`}},
+   compute:v=>{const A=v.y0*Math.pow(1+v.g1/100,v.T),B=v.y0*Math.pow(1+v.g2/100,v.T);return{A,B,note:A===B?'Same growth rate, same outcome.':`Both start at the same income, but after ${v.T} years ${B>A?'B':'A'} is ${times(Math.max(A,B)/Math.min(A,B))} as rich as ${B>A?'A':'B'}.`}},
    draw:(v,r)=>({xmax:v.T,ymax:Math.max(r.A,r.B)*1.08,xl:'Years',yl:'GDP per capita ($k)',
      curves:[
        {pts:line(t=>v.y0*Math.pow(1+v.g1/100,t),0,v.T),color:'--c1',label:v.g1===v.g2?'Country A & B':`Country A (${v.g1}%)`},
        ...(v.g1===v.g2?[]:[{pts:line(t=>v.y0*Math.pow(1+v.g2/100,t),0,v.T),color:'--c2',label:`Country B (${v.g2}%)`}])
      ]}),
-   outs:(v,r)=>[['A ends at','$'+f1(r.A)+'k'],['B ends at','$'+f1(r.B)+'k'],['A doubles in',v.g1?f1(70/v.g1)+' yrs':'never'],['B doubles in',v.g2?f1(70/v.g2)+' yrs':'never']]});
+   outs:(v,r)=>[['A ends at',money(r.A)],['B ends at',money(r.B)],['A doubles in',v.g1?f1(70/v.g1)+' yrs':'never'],['B doubles in',v.g2?f1(70/v.g2)+' yrs':'never']]});
 },
 labor(h){
   h.appendChild(el('<h3>Unemployment &amp; inflation calculators</h3><p class="lead">Only people actively seeking work count as unemployed; the CPI tracks the price of a fixed basket.</p>'));
-  widget(h,{controls:[{id:'pop',l:'Adult population (m)',min:100,max:300,v:260},{id:'emp',l:'Employed (m)',min:50,max:200,v:155},{id:'un',l:'Unemployed (m)',min:0,max:30,v:7,step:.5}],
+  widget(h,{controls:[{id:'pop',l:'Adult population (m)',min:230,max:300,v:260},{id:'emp',l:'Employed (m)',min:50,max:200,v:155},{id:'un',l:'Unemployed (m)',min:0,max:30,v:7,step:.5}],
    compute:v=>{const lf=v.emp+v.un;if(lf>v.pop)return{lf:v.pop,emp:v.emp,un:v.un,nilf:0,ur:v.un/lf*100,lfpr:100,note:'Employed + unemployed cannot exceed the adult population. Lower one of the sliders.'};return{lf,emp:v.emp,un:v.un,nilf:v.pop-lf,ur:v.un/lf*100,lfpr:lf/v.pop*100,note:'Discouraged workers who stop searching leave the labor force, so the unemployment rate can fall without any job being created.'}},
    draw:(v,r)=>({height:155,
      bars:[
@@ -545,9 +526,20 @@ const MODS=[
  cards:[['Externality','A cost or benefit of a transaction that falls on a third party.'],['Pigouvian tax','Tax equal to the marginal external cost.'],['Public good','Non-excludable and non-rival.'],['Free-rider problem','People benefit without paying, so too little is provided.'],['Adverse selection','Hidden information before a deal leads to bad pools of buyers/sellers.'],['Moral hazard','Risky behavior after being insured.'],['Fiscal policy','Government spending and tax decisions.'],['Monetary policy','Central bank control of money and interest rates.'],['Multiplier','Total change in output per initial change in spending, 1/(1−MPC).'],['Crowding out','Government borrowing reducing private investment.'],['Automatic stabilizers','Programs that automatically counter the business cycle.'],['Budget deficit','Government spending exceeds revenue in a year.']]}
 ];
 
+const EXTRA={
+ m1:"<div class=\"card\"><h3 style=\"margin-top:0\">Worked example: Budget and opportunity cost</h3><p>You have $60. Tickets cost $10 and snacks cost $5. You can afford 6 tickets, or 12 snacks, or any mix on the line between. One ticket costs 2 snacks (10 ÷ 5), so the line's slope is −2. If income rises to $90, the line shifts out: 9 tickets or 18 snacks, same slope.</p><div class=\"key\"><b>Common exam traps</b><ul><li>Absolute vs comparative advantage: compare opportunity costs, not total output.</li><li>Sunk costs (already paid) do not belong in a forward-looking decision.</li><li>A price change <i>rotates</i> the budget line; an income change <i>shifts</i> it.</li></ul></div></div>",
+ m2:"<div class=\"card\"><h3 style=\"margin-top:0\">Worked example: Marginal cost vs price</h3><p>Producing 10 units costs $150 and 11 units cost $168, so the 11th unit has MC = $18. The price is $20. Selling one more adds $20 of revenue for $18 of cost, so produce it. Keep going until MC rises to $20.</p><div class=\"key\"><b>Common exam traps</b><ul><li>Accounting profit ignores implicit costs; economic profit subtracts them.</li><li>The short-run shutdown test compares P with <b>AVC</b>, not ATC.</li><li>MC crosses ATC and AVC at their <i>minimums</i>.</li></ul></div></div>",
+ m3:"<div class=\"card\"><h3 style=\"margin-top:0\">Worked example: Elasticity and revenue (midpoint method)</h3><p>Price rises from $10 to $12 and quantity falls from 100 to 80. %ΔQ = −20/90 = −22.2%; %ΔP = 2/11 = 18.2%. Elasticity = 22.2/18.2 ≈ 1.22, which is elastic. Revenue falls from $1,000 (10×100) to $960 (12×80).</p><div class=\"key\"><b>Common exam traps</b><ul><li>Price changes cause movements <i>along</i> a curve; other factors <i>shift</i> it.</li><li>A price ceiling only matters if it is below equilibrium (a floor if above).</li><li>'Demand' is the whole curve; 'quantity demanded' is one point on it.</li></ul></div></div>",
+ m4:"<div class=\"card\"><h3 style=\"margin-top:0\">Worked example: Monopoly vs competition</h3><p>Demand P = 100 − Q, MC = 20. Monopoly: MR = 100 − 2Q = 20, so Q = 40, P = 60, profit = (60 − 20) × 40 = $1,600. Competition: P = MC = 20, so Q = 80. Deadweight loss = ½ × (80 − 40) × (60 − 20) = $800.</p><div class=\"key\"><b>Common exam traps</b><ul><li>A monopolist does not charge the highest possible price; it charges where MR = MC.</li><li>MR is below price because lowering price applies to <i>all</i> units sold.</li><li>Zero economic profit does not mean zero accounting profit.</li></ul></div></div>",
+ m5:"<div class=\"card\"><h3 style=\"margin-top:0\">Worked example: Reading inequality</h3><p>Five groups earn 10, 20, 30, 40, 100 (total 200). Shares: 5%, 10%, 15%, 20%, 50%. The richest fifth takes half of all income, so the Lorenz curve bows well below the 45° line. If 3 of 20 households fall below the poverty line, the poverty rate is 15%.</p><div class=\"key\"><b>Common exam traps</b><ul><li>Income is a flow; wealth is a stock (and more unequal).</li><li>Inequality and poverty are different measures: a country can have one without the other.</li><li>A Gini compares the shape of the distribution, not the average income level.</li></ul></div></div>",
+ m6:"<div class=\"card\"><h3 style=\"margin-top:0\">Worked example: GDP and growth arithmetic</h3><p>C = 70, I = 20, G = 25, exports = 10, imports = 15 → GDP = 70 + 20 + 25 + (10 − 15) = 110. If nominal GDP grows 5.5% and prices rise 2%, real growth ≈ 3.5%. At 2.5% growth, income doubles in about 70/2.5 = 28 years.</p><div class=\"key\"><b>Common exam traps</b><ul><li>Imports are subtracted in GDP because C, I and G already include imported goods.</li><li>Used goods and pure financial trades are not part of GDP.</li><li>Always compare <i>real</i> values over time.</li></ul></div></div>",
+ m7:"<div class=\"card\"><h3 style=\"margin-top:0\">Worked example: Unemployment and inflation numbers</h3><p>Adults 260m, employed 155m, unemployed 7m. Labor force = 162m. Unemployment rate = 7/162 = 4.3%. Participation = 162/260 = 62.3%. A basket costing $200 in the base year and $210 now has CPI = 105, so inflation is 5%. With 4% nominal wage growth, the real wage falls about 1%.</p><div class=\"key\"><b>Common exam traps</b><ul><li>Discouraged workers are not in the labor force, so they don't count as unemployed.</li><li>CPI is a <i>level</i>; inflation is its percent <i>change</i>.</li><li>Convert to real before comparing: real ≈ nominal − inflation.</li></ul></div></div>",
+ m8:"<div class=\"card\"><h3 style=\"margin-top:0\">Worked example: Externalities and the multiplier</h3><p>Each unit of a good causes $20 of pollution damage the producer doesn't pay. A Pigouvian tax of $20 per unit makes the producer face the full social cost. With MPC = 0.75 the simple multiplier is 1/(1 − 0.75) = 4, so $100b of new spending raises GDP by about $400b.</p><div class=\"key\"><b>Common exam traps</b><ul><li>A public good is non-rival and non-excludable, not just government-provided.</li><li>Real-world multipliers are smaller than 1/(1 − MPC) because of taxes, imports and crowding out.</li><li>Tax revenue is a transfer; the deadweight loss is the trades that disappear.</li></ul></div></div>",
+};
 // ---------- UI ----------
 const nav=document.getElementById('nav'),main=document.getElementById('main');
 let cur=null,tab='learn';
+try{const sp=store.get('econ-pos',null);if(sp){cur=sp.id==='exam'?{id:'exam'}:MODS.find(m=>m.id===sp.id)||null;if(sp.tab)tab=sp.tab}}catch(e){}
 const shuffle=a=>{a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a};
 function pct(m){const p=progress[m.id];return p?`<span class="pct" title="Best quiz score">best ${Math.round(p.best/p.total*100)}%</span>`:''}
 function renderNav(){
@@ -555,13 +547,13 @@ function renderNav(){
   MODS.forEach(m=>{const on=cur&&cur.id===m.id;const b=el(`<button class="${on?'on':''}" ${on?'aria-current="true"':''}>${m.title}${pct(m)}</button>`).firstChild;b.onclick=()=>{cur=m;tab='learn';render()};nav.appendChild(b)});
   const on=cur&&cur.id==='exam';const x=el(`<button class="${on?'on':''}" ${on?'aria-current="true"':''}>★ Mixed practice exam${pct({id:'exam'})}</button>`).firstChild;x.onclick=()=>{cur={id:'exam'};render()};nav.appendChild(x);
 }
-function render(){renderNav();resizers=[];main.innerHTML='';if(!cur){home();return}
+function render(){renderNav();resizers=[];main.innerHTML='';store.set('econ-pos',cur?{id:cur.id,tab}:null);if(!cur){home();return}
   if(cur.id==='exam'){exam();return}
   main.appendChild(el(`<p class="lead" style="margin:0">Course topic: ${cur.topic}</p>`));
-  const tabs=el('<div class="tabs" role="tablist"></div>').firstChild;
-  [['learn','Learn'],['explore','Explore'],['quiz','Quiz'],['cards','Flashcards']].forEach(([k,l])=>{const b=el(`<button role="tab" aria-selected="${tab===k}" class="${tab===k?'on':''}">${l}</button>`).firstChild;b.onclick=()=>{tab=k;render()};tabs.appendChild(b)});
+  const tabs=el('<div class="tabs"></div>').firstChild;
+  [['learn','Learn'],['explore','Explore'],['quiz','Quiz'],['cards','Flashcards']].forEach(([k,l])=>{const b=el(`<button aria-pressed="${tab===k}" class="${tab===k?'on':''}">${l}</button>`).firstChild;b.onclick=()=>{tab=k;render()};tabs.appendChild(b)});
   main.appendChild(tabs);const body=el('<div></div>').firstChild;main.appendChild(body);
-  if(tab==='learn'){body.appendChild(el(`<div class="card">${cur.learn}</div>`).firstChild)}
+  if(tab==='learn'){body.appendChild(el(`<div class="card">${cur.learn}</div>`).firstChild);if(EXTRA[cur.id])body.appendChild(el(EXTRA[cur.id]).firstChild)}
   if(tab==='explore'){cur.explore.forEach(k=>W[k](body))}
   if(tab==='quiz')quiz(body,cur.quiz,cur);
   if(tab==='cards')cards(body,cur.cards);
@@ -575,24 +567,29 @@ function home(){
   <div class="card"><small>Content is aligned to the topic list on the Columbia course listing and standard introductory-economics material (e.g. Mankiw, Krugman/Wells, OpenStax). Your syllabus, textbook and professor's emphasis take priority – use this as a supplement. The official listing doesn't publish a weekly schedule, so modules follow the order of the listed topics.</small></div>`;
   main.querySelector('#go').onclick=()=>{cur=MODS[0];tab='learn';render()};
 }
-function quiz(host,qs,mod,mixed){
-  let i=0,score=0,missed=[];const box=el('<div class="card"></div>').firstChild;host.appendChild(box);
+function quiz(host,qs,mod,mixed,all){
+  all=all||qs;let i=0,score=0,missed=[];const box=el('<div class="card"></div>').firstChild;host.appendChild(box);
   const byMod={};
   (function show(){
     if(i>=qs.length){const p=Math.round(score/qs.length*100);
       if(mod&&!mod.retry){const o=progress[mod.id];if(!o||score/qs.length>o.best/o.total)progress[mod.id]={best:score,total:qs.length};store.set('econ-progress',progress);renderNav()}
       box.innerHTML=`<h3>Score: ${score}/${qs.length} (${p}%)</h3><p>${p>=80?'Great work!':p>=60?'Getting there – revisit the Learn and Explore tabs.':'Review the Learn tab and try again.'}</p>`;
-      if(mixed){const t=Object.entries(byMod).map(([k,v])=>`<tr><td>${k}</td><td>${v[0]}/${v[1]}</td></tr>`).join('');box.appendChild(el(`<table><tr><th>Module</th><th>Correct</th></tr>${t}</table>`));}
-      if(missed.length){box.appendChild(el(`<h3>Review what you missed</h3>`));
-        missed.forEach(q=>box.appendChild(el(`<div class="key"><b>${q.q}</b><br>Your answer: ${q.mine}<br>Correct answer: ${q.o[q.a]}<br>${q.e}</div>`).firstChild))}
+      if(mixed){const rows=MODS.filter(m=>byMod[m.title]).map(m=>{const v=byMod[m.title];return[m,v,v[0]/v[1]]});
+        box.appendChild(el(`<small>Rough signal only: each module has just 1–3 questions in a 12-question exam.</small>`).firstChild);
+        box.appendChild(el(`<table><tr><th>Module</th><th>Correct</th><th></th></tr>${rows.map(([m,v,f])=>`<tr><td>${m.title}</td><td>${v[0]}/${v[1]} (${Math.round(f*100)}%)</td><td>${f<.6?'review':''}</td></tr>`).join('')}</table>`).firstChild);
+        const weak=rows.filter(r=>r[2]<.6).sort((a,b)=>a[2]-b[2])[0];
+        if(weak){const wb=el(`<button class="btn" style="margin-top:8px">Review weakest: ${weak[0].title}</button>`).firstChild;wb.onclick=()=>{cur=weak[0];tab='learn';render()};box.appendChild(wb)}}
+      if(missed.length){box.appendChild(el(`<h3>Review what you missed</h3>`).firstChild);
+        missed.forEach(q=>box.appendChild(el(`<div class="key" style="margin-bottom:12px"><b>${q.q}</b><br><span style="color:var(--bad)">Your answer: ${q.mine}</span><br><span style="color:var(--good)">Correct answer: ${q.o[q.a]}</span><br>${q.e}</div>`).firstChild))}
       const r=el('<div class="row" style="margin-top:10px"></div>').firstChild;box.appendChild(r);
-      const b=el('<button class="btn primary">Retry all (reshuffled)</button>').firstChild;b.onclick=()=>{host.removeChild(box);quiz(host,mixed?pick():shuffle(qs),mod,mixed)};r.appendChild(b);
-      if(missed.length){const m2=el('<button class="btn">Retry missed only</button>').firstChild;m2.onclick=()=>{host.removeChild(box);quiz(host,shuffle(missed),{retry:true},false)};r.appendChild(m2)}
+      const b=el(`<button class="btn primary">${mod&&mod.retry?'Full quiz again':'Retry all (reshuffled)'}</button>`).firstChild;b.onclick=()=>{host.removeChild(box);quiz(host,mixed?pick():shuffle(all),mod&&mod.retry?cur:mod,mixed,all)};r.appendChild(b);
+      if(missed.length){const m2=el('<button class="btn">Retry missed only</button>').firstChild;m2.onclick=()=>{host.removeChild(box);quiz(host,shuffle(missed),{retry:true},false,all)};r.appendChild(m2)}
       return}
     const q=qs[i];box.innerHTML=`<small>Question ${i+1} of ${qs.length}</small><h3 style="margin-top:4px">${q.q}</h3>`;
     let done=false;const fb=el('<div aria-live="polite"></div>').firstChild;
     shuffle(q.o.map((t,k)=>[t,k])).forEach(([t,k])=>{const b=el(`<button class="opt">${t}</button>`).firstChild;b.dataset.k=k;b.onclick=()=>{if(done)return;done=true;
       const ok=k===q.a;if(ok)score++;else missed.push({...q,mine:t});
+      try{let ms=store.get('econ-missed',[]);ms=ms.filter(x=>x!==q.q);if(!ok)ms.push(q.q);store.set('econ-missed',ms)}catch(e){}
       if(q.mod){byMod[q.mod]=byMod[q.mod]||[0,0];byMod[q.mod][1]++;if(ok)byMod[q.mod][0]++}
       b.classList.add(ok?'right':'wrong');box.querySelectorAll('.opt').forEach(o=>{if(+o.dataset.k===q.a)o.classList.add('right');o.disabled=true});
       fb.appendChild(el(`<div class="key">${ok?'Correct. ':'Not quite. '}${q.e}</div>`).firstChild);
@@ -600,8 +597,8 @@ function quiz(host,qs,mod,mixed){
     box.appendChild(fb);
   })();
 }
-const pick=()=>{const per=MODS.map(m=>shuffle(m.quiz.map(q=>({...q,mod:m.title})))),first=per.map(a=>a[0]),rest=shuffle(per.flatMap(a=>a.slice(1)));return shuffle([...first,...rest.slice(0,12-first.length)])};
-function exam(){main.appendChild(el('<h2>Mixed practice exam</h2><p class="lead">12 questions: at least one from every module, the rest random. Your best score is saved.</p>'));quiz(main,pick(),{id:'exam'},true)}
+const pick=()=>{const ms=store.get('econ-missed',[]),per=MODS.map(m=>shuffle(m.quiz.map(q=>({...q,mod:m.title})))),first=per.map(a=>a[0]),rest=shuffle(per.flatMap(a=>a.slice(1))).sort((a,b)=>ms.includes(b.q)-ms.includes(a.q));return shuffle([...first,...rest.slice(0,12-first.length)])};
+function exam(){main.appendChild(el('<h2>Mixed practice exam</h2><p class="lead">12 questions: at least one from every module; the rest favor questions you missed before. Your best score is saved.</p>'));quiz(main,pick(),{id:'exam'},true)}
 function cards(host,list){
   let deck=shuffle(list),i=0,back=false,known=0;const total=list.length;const box=el('<div></div>').firstChild;host.appendChild(box);
   (function show(){
