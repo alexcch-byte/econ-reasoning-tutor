@@ -243,7 +243,7 @@ dilemma(h){
   function draw(){
     const bestA=P['H'+b][0]>P['L'+b][0]?'H':'L',bestB=P[a+'H'][1]>P[a+'L'][1]?'H':'L',nash=bestA===a&&bestB===b;
     const cell=(x,y)=>`<td style="${a===x&&b===y?'background:var(--fill);font-weight:600':''}">${P[x+y][0]}, ${P[x+y][1]}</td>`;
-    box.innerHTML=`<div class="row"><span>Firm A:</span><button class="btn ${a==='H'?'primary':''}" data-a="H">High</button><button class="btn ${a==='L'?'primary':''}" data-a="L">Low</button><span style="margin-left:12px">Firm B:</span><button class="btn ${b==='H'?'primary':''}" data-b="H">High</button><button class="btn ${b==='L'?'primary':''}" data-b="L">Low</button></div>
+    box.innerHTML=`<div class="row"><span>Firm A:</span><button class="btn ${a==='H'?'primary':''}" aria-pressed="${a==='H'}" data-a="H">High</button><button class="btn ${a==='L'?'primary':''}" aria-pressed="${a==='L'}" data-a="L">Low</button><span style="margin-left:12px">Firm B:</span><button class="btn ${b==='H'?'primary':''}" aria-pressed="${b==='H'}" data-b="H">High</button><button class="btn ${b==='L'?'primary':''}" aria-pressed="${b==='L'}" data-b="L">Low</button></div>
     <table style="margin-top:10px;max-width:420px"><tr><th>A \\ B</th><th>B: High</th><th>B: Low</th></tr><tr><th>A: High</th>${cell('H','H')}${cell('H','L')}</tr><tr><th>A: Low</th>${cell('L','H')}${cell('L','L')}</tr></table>
     <div class="out"><div>Firm A best reply to B's choice<b>${nm[bestA]}</b></div><div>Firm B best reply to A's choice<b>${nm[bestB]}</b></div><div>Stable (no one wants to switch)?<b>${nash?'Yes':'No'}</b></div></div>
     <div class="key">Low is the best reply whatever the other firm does (a dominant strategy), so both end up at Low, Low with 5 each, even though High, High would give each firm 10. That is why cartels tend to break down unless cheating can be punished in repeated play.</div>`;
@@ -276,7 +276,7 @@ costs(h){
          {pts:[[0,v.P],[xm,v.P]],color:'--c4',label:'P = MR',lx:xm*.6}
        ],
        points:r.q>0?[{x:r.q,y:v.P,label:'q*'}]:[]}},
-   extra:v=>{let rows='';for(let q=1;q<=10;q++){const tc=v.F+v.c*q+v.d*q*q,tcp=v.F+v.c*(q-1)+v.d*(q-1)*(q-1);rows+=`<tr><td>${q}</td><td>${f1(tc)}</td><td>${f1(tc-tcp)}</td><td>${f1(tc/q)}</td></tr>`}return`<p style="margin-bottom:4px"><b>Cost table</b> (MC = cost of the q-th unit; compare it with the price)</p><table><tr><th>q</th><th>Total cost</th><th>MC of q-th unit</th><th>ATC</th></tr>${rows}</table>`},
+   extra:(v,r0)=>{let rows='';const qs=[1,2,3,4,5,6,7,8,9,10];const qr=Math.round(r0.q);if(qr>10)qs.push(qr);for(const q of qs){const tc=v.F+v.c*q+v.d*q*q,tcp=v.F+v.c*(q-1)+v.d*(q-1)*(q-1);rows+=`<tr><td>${q}${q===qr&&q>10?' (q*)':''}</td><td>${f1(tc)}</td><td>${f1(tc-tcp)}</td><td>${f1(tc/q)}</td></tr>`}return`<p style="margin-bottom:4px"><b>Cost table</b> (MC = cost of the q-th unit; compare it with the price)</p><table><tr><th>q</th><th>Total cost</th><th>MC of q-th unit</th><th>ATC</th></tr>${rows}</table>`},
    outs:(v,r)=>[['Output q*',f1(r.q)],['Total cost',f1(r.tc)],['Profit',f1(r.pi)],['Min ATC (zero-profit price)',f1(v.c+2*Math.sqrt(v.F*v.d))]]});
 },
 supplydemand(h){
